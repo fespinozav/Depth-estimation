@@ -15,7 +15,9 @@ Funciona con **webcam**, **videos MP4** o **carpetas de imágenes**, y autodetec
 - **Hardware**: `--device auto|cuda|mps|cpu` + **FP16** opcional en CUDA.  
 - **PDI**: normalización por percentiles (p2–p98), **bilateral** opcional, **EMA** para reducir *flicker* en video.  
 - **Visualización**: RGB | Depth (colormap **MAGMA**) + **FPS**.  
-- **Salidas**: `.npy` (float32 crudo), **PNG 16‑bit** normalizado, PNG coloreado y **MP4** (para fuente de video).  
+- **Salidas**: `.npy` (float32 crudo), **PNG 16‑bit** normalizado, PNG coloreado y **MP4** (para `video` y `webcam` con `--record-webcam`).  
+- **Grabación webcam**: `--record-webcam` graba MP4 del stream de webcam (FPS configurable con `--webcam-fps`).  
+- **Organización de salidas**: `--use-model-subdir` crea `outputs/<MODELO>/`; `--output-subdir` añade `outputs/.../<SUBDIR>/`.
 - **Usabilidad**: salir con teclas **q/x/ESC** o cerrando la ventana con **“X”**.  
 - **Logs**: `outputs/log.csv` con parámetros y FPS por cuadro.
 
@@ -41,6 +43,14 @@ python midas_depth_app.py --source webcam --backend avfoundation \
 ```
 - **Cerrar**: **q**, **x**, **ESC** o botón **“X”**.
 
+### Webcam (grabando MP4)
+```bash
+python midas_depth_app.py --source webcam --backend avfoundation \
+  --model DPT_Hybrid --record-webcam --webcam-fps 25 \
+  --bilateral --save-every-n 60 --save-color --save-depth16
+# genera: outputs/webcam_depth_colored.mp4 (o dentro de las subcarpetas configuradas)
+```
+
 ### Video → exportar MP4 con profundidad
 ```bash
 python midas_depth_app.py --source video --path ./samples/entrada.mp4 \
@@ -59,6 +69,14 @@ python midas_depth_app.py --source images --path ./images \
 # Forzar CUDA + FP16 y mayor tamaño de entrada
 python midas_depth_app.py --device cuda --fp16 --size 640 --source video \
   --path ./samples/entrada.mp4 --save-video
+
+# Guardar dentro de una subcarpeta por modelo (p. ej., outputs/DPT_Large/...)
+python midas_depth_app.py --source images --path ./images \
+  --model DPT_Large --use-model-subdir --save-color --save-depth16
+
+# Guardar dentro de una subcarpeta personalizada (p. ej., outputs/kitti_eval/...)
+python midas_depth_app.py --source video --path ./samples/entrada.mp4 \
+  --save-video --output-subdir kitti_eval
 ```
 
 ---
@@ -82,10 +100,14 @@ python midas_depth_app.py --device cuda --fp16 --size 640 --source video \
 | `--ema-alpha` | `0.85` | EMA temporal (video). `<=0` desactiva |
 | `--no-display` | `False` | Modo *headless* (sin ventanas) |
 | `--output-dir` | `outputs` | Carpeta de salidas |
+| `--output-subdir` | `""` | Subcarpeta dentro de `--output-dir` |
+| `--use-model-subdir` | `False` | Crear subcarpeta con el nombre del modelo (p. ej., `outputs/DPT_Large`) |
 | `--save-raw` | `False` | Guarda `.npy` (float32) |
 | `--save-depth16` | `False` | Guarda PNG 16‑bit normalizado |
 | `--save-color` | `False` | Guarda PNG coloreado |
 | `--save-video` | `False` | Exporta MP4 (solo `--source video`) |
+| `--record-webcam` | `False` | Grabar MP4 del stream de webcam (vista combinada) |
+| `--webcam-fps` | `25.0` | FPS de salida para grabación de webcam |
 | `--save-every-n` | `0` | Guardar artefactos cada N frames |
 | `--max-frames` | `0` | Límite de cuadros a procesar |
 
@@ -118,6 +140,18 @@ python midas_depth_app.py --device cuda --fp16 --size 640 --source video \
 └── samples/ (opcional)
 ```
 
+**Con subcarpetas opcionales**
+```
+outputs/
+└── DPT_Large/              # --use-model-subdir
+    └── demo_sala/          # --output-subdir demo_sala
+        ├── depth_colored.mp4
+        ├── *_depth16.png
+        ├── *_depth_color.png
+        ├── *_depth.npy
+        └── log.csv
+```
+
 ---
 
 ## 📈 Evaluación (opcional para el curso)
@@ -127,7 +161,6 @@ Si no hay GT, entrega comparativas visuales (mosaicos input|depth, PNG 16‑bit)
 ---
 
 ## 🧩 Roadmap
-- Grabación MP4 también en modo **webcam** (`--record-webcam`).  
 - Soporte adicional: **Depth Anything V2** (relativa/métrica), **ZoeDepth** (métrica).  
 - Métricas cualitativas de bordes (iBims‑1‑like).
 
@@ -150,3 +183,6 @@ Elige una licencia para este repo (por ejemplo, **MIT**).
 - **Bajo FPS**: usa `--model MiDaS_small` o `DPT_Hybrid`, reduce `--size`, habilita `--fp16` en CUDA.  
 - **Parpadeo en profundidad**: deja activado `--ema-alpha 0.85` y usa `--bilateral`.  
 - **Ventana no cierra**: usa `q/x/ESC` o el botón **“X”**.
+
+## 🔗 Referencias
+- https://github.com/isl-org/MiDaS

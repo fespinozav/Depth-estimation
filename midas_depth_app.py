@@ -87,6 +87,23 @@ def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
 
+# Helper para determinar el directorio final de salida según flags
+def get_output_dir(args) -> Path:
+    """
+    Devuelve el directorio final de salida considerando:
+    - args.output_dir (base)
+    - args.use_model_subdir  -> añade el nombre del modelo como subcarpeta
+    - args.output_subdir     -> añade una subcarpeta personalizada
+    """
+    base = Path(args.output_dir)
+    if getattr(args, "use_model_subdir", False):
+        base = base / args.model
+    # output_subdir puede ser cadena vacía -> no añadir
+    if getattr(args, "output_subdir", ""):
+        base = base / args.output_subdir
+    return base
+
+
 def write_csv_header(csv_path: Path):
     new_file = not csv_path.exists()
     f = open(csv_path, "a", newline="", encoding="utf-8")
@@ -167,10 +184,13 @@ def process_webcam(args, midas, transform, device):
     if not cap.isOpened():
         raise RuntimeError("No se pudo abrir la webcam.")
 
-    ensure_dir(Path(args.output_dir))
-    csv_file, writer = write_csv_header(Path(args.output_dir) / "log.csv")
+    out_dir = get_output_dir(args)
+    ensure_dir(out_dir)
+    csv_file, writer = write_csv_header(out_dir / "log.csv")
 
     ema = None
+    writer_video = None
+    out_path_webcam = str(out_dir / "webcam_depth_colored.mp4")
     try:
         t_prev = time.perf_counter()
         idx = 0
@@ -203,6 +223,19 @@ def process_webcam(args, midas, transform, device):
             # Mostrar lado a lado
             viz = cv.hconcat([frame, depth_color])
 
+            # Inicializa grabación MP4 en el primer frame si se solicitó
+            if args.record_webcam and writer_video is None:
+                fourcc = cv.VideoWriter_fourcc(*"mp4v")
+                writer_video = cv.VideoWriter(out_path_webcam, fourcc, args.webcam_fps, (viz.shape[1], viz.shape[0]))
+                if not writer_video.isOpened():
+                    print(f"[WARN] No se pudo abrir el VideoWriter para {out_path_webcam}")
+                else:
+                    print(f"[INFO] Grabando webcam a {out_path_webcam} @ {args.webcam_fps} FPS")
+
+            # Si está activo, escribir frame al MP4
+            if writer_video is not None:
+                writer_video.write(viz)
+
             # FPS
             t1 = time.perf_counter()
             fps = 1.0 / max(t1 - t_prev, 1e-6)
@@ -227,7 +260,7 @@ def process_webcam(args, midas, transform, device):
             # Guardado por frame (opcional)
             if args.save_every_n > 0 and (idx % args.save_every_n == 0):
                 base = f"webcam_{idx:06d}"
-                save_artifacts(depth, depth_u8, depth_color, Path(args.output_dir), base, args)
+                save_artifacts(depth, depth_u8, depth_color, out_dir, base, args)
 
             # Log CSV
             writer.writerow([
@@ -256,10 +289,13 @@ def process_webcam(args, midas, transform, device):
                 break
             if key == ord('s'):
                 base = f"snap_{int(time.time())}"
-                save_artifacts(depth, depth_u8, depth_color, Path(args.output_dir), base, args)
+                save_artifacts(depth, depth_u8, depth_color, out_dir, base, args)
 
     finally:
         cap.release()
+        if writer_video is not None:
+            writer_video.release()
+            print(f"[INFO] Video guardado en {out_path_webcam}")
         cv.destroyAllWindows()
         csv_file.close()
 
@@ -270,18 +306,23 @@ def process_video(args, midas, transform, device):
     if not cap.isOpened():
         raise RuntimeError(f"No se pudo abrir el video: {args.path}")
 
-    ensure_dir(Path(args.output_dir))
-    csv_file, writer = write_csv_header(Path(args.output_dir) / "log.csv")
+    out_dir = get_output_dir(args)
+    ensure_dir(out_dir)
+    csv_file, writer = write_csv_header(out_dir / "log.csv")
 
     # Preparar escritor de video si se solicita
     writer_video = None
     if args.save_video:
         fourcc = cv.VideoWriter_fourcc(*"mp4v")
-        out_path = str(Path(args.output_dir) / "depth_colored.mp4")
+        out_path = str(out_dir / "depth_colored.mp4")
         fps_in = cap.get(cv.CAP_PROP_FPS) or 25.0
         w = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         writer_video = cv.VideoWriter(out_path, fourcc, fps_in, (w * 2, h))  # original|depth
+        if not writer_video.isOpened():
+            print(f"[WARN] No se pudo abrir el VideoWriter para {out_path}")
+        else:
+            print(f"[INFO] Grabando video procesado a {out_path} @ {fps_in} FPS")
 
     ema = None
     try:
@@ -327,7 +368,7 @@ def process_video(args, midas, transform, device):
             # Guardados periódicos
             if args.save_every_n > 0 and (idx % args.save_every_n == 0):
                 base = Path(args.path).stem + f"_{idx:06d}"
-                save_artifacts(depth, depth_u8, depth_color, Path(args.output_dir), base, args)
+                save_artifacts(depth, depth_u8, depth_color, out_dir, base, args)
 
             writer.writerow([
                 time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -371,8 +412,9 @@ def process_images(args, midas, transform, device):
     if not files:
         raise RuntimeError("No se encontraron imágenes en la carpeta.")
 
-    ensure_dir(Path(args.output_dir))
-    csv_file, writer = write_csv_header(Path(args.output_dir) / "log.csv")
+    out_dir = get_output_dir(args)
+    ensure_dir(out_dir)
+    csv_file, writer = write_csv_header(out_dir / "log.csv")
 
     try:
         for idx, img_path in enumerate(files):
@@ -403,7 +445,7 @@ def process_images(args, midas, transform, device):
                     break
 
             base = img_path.stem
-            save_artifacts(depth, depth_u8, depth_color, Path(args.output_dir), base, args)
+            save_artifacts(depth, depth_u8, depth_color, out_dir, base, args)
 
             writer.writerow([
                 time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -481,10 +523,14 @@ def parse_args():
     ap.add_argument("--no-display", action="store_true", help="No mostrar ventanas (modo batch/headless)")
 
     ap.add_argument("--output-dir", type=str, default="outputs", help="Carpeta de salida")
+    ap.add_argument("--output-subdir", type=str, default="", help="Nombre de subcarpeta dentro del directorio de salida (se creará si no existe).")
+    ap.add_argument("--use-model-subdir", action="store_true", help="Guardar salidas dentro de una subcarpeta con el nombre del modelo (p. ej., outputs/DPT_Large).")
     ap.add_argument("--save-raw", action="store_true", help="Guardar profundidad cruda .npy (float32)")
     ap.add_argument("--save-depth16", action="store_true", help="Guardar PNG 16-bit (normalizada)")
     ap.add_argument("--save-color", action="store_true", help="Guardar PNG coloreado (visualización)")
     ap.add_argument("--save-video", action="store_true", help="Exportar video coloreado (para --source video)")
+    ap.add_argument("--record-webcam", action="store_true", help="Grabar MP4 del stream de webcam (vista combinada)")
+    ap.add_argument("--webcam-fps", type=float, default=25.0, help="FPS de salida para grabación de webcam")
 
     ap.add_argument("--save-every-n", type=int, default=0,
                     help="Guardar artefactos cada N frames (0=desactivar)")
@@ -510,7 +556,7 @@ def main():
     midas, transform = load_midas(args.model, device, args.fp16)
 
     # Rutas de salida
-    ensure_dir(Path(args.output_dir))
+    ensure_dir(get_output_dir(args))
 
     # Despacho según fuente
     if args.source == "webcam":
