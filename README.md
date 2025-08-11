@@ -1,6 +1,3 @@
-# Depth-estimation
-models for computing relative depth from a single image.
-
 # Estimación de Profundidad Monocular (MiDaS) — App híbrida PDI + DL
 
 Aplicación CLI para **estimar profundidad monocular** en **tiempo real** y por **lotes**, basada en **MiDaS (Intel‑ISL)** e integrada con técnicas de **Procesamiento Digital de Imágenes (PDI)**: normalización robusta por percentiles, filtro bilateral (preserva bordes) y **suavizado temporal EMA** para video.  
