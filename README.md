@@ -154,8 +154,8 @@ outputs/
 
 ---
 
-## 📈 Evaluación (opcional para el curso)
-Si dispones de ground truth (p. ej., **NYU v2** o **KITTI**), añade un `eval_depth.py` para calcular **AbsRel**, **RMSE**, **log10**, **δ<1.25/1.25²/1.25³**.  
+## 📈 Evaluación
+Si se dispone de ground truth (p. ej., **NYU v2** o **KITTI**), añade un `eval_depth.py` para calcular **AbsRel**, **RMSE**, **log10**, **δ<1.25/1.25²/1.25³**.  
 Si no hay GT, entrega comparativas visuales (mosaicos input|depth, PNG 16‑bit) y **FPS**.
 
 ---
