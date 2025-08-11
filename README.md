@@ -6,6 +6,10 @@ models for computing relative depth from a single image.
 Aplicación CLI para **estimar profundidad monocular** en **tiempo real** y por **lotes**, basada en **MiDaS (Intel‑ISL)** e integrada con técnicas de **Procesamiento Digital de Imágenes (PDI)**: normalización robusta por percentiles, filtro bilateral (preserva bordes) y **suavizado temporal EMA** para video.  
 Funciona con **webcam**, **videos MP4** o **carpetas de imágenes**, y autodetecta **CUDA/MPS/CPU**. Incluye salida a **MP4** y artefactos reproducibles (PNG 16‑bit, .npy y log CSV).
 
+<p align="center">
+  <img src="midas_depth.gif" alt="Webcam test" width="600">
+</p>
+
 ---
 
 ## ✨ Características
