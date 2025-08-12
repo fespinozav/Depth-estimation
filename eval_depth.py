@@ -119,25 +119,47 @@ def make_mask(gt: np.ndarray, min_depth: float, max_depth: float, crop: str) -> 
     return m
 
 def intersect_basenames(pred_dir: Path, gt_dir: Path, pred_type: str, gt_type: str, file_list: Path = None) -> List[str]:
-    def collect(dirp: Path, dtype: str):
-        mapping = {}
+    """
+    Devuelve la lista de nombres base comunes entre pred y gt.
+    - En predicciones, se aceptan *_depth16.(png|tif|tiff) y *_depth.npy; se normalizan a su basename sin sufijo.
+    - Se ignoran archivos de visualización (p. ej., *_depth_color.png).
+    """
+    def collect(dirp: Path, dtype: str) -> Dict[str, Path]:
+        mapping: Dict[str, Path] = {}
+        def add(key: str, p: Path):
+            mapping.setdefault(key, p)
+
         if dtype in ("auto", "png"):
-            for ext in VALID_IMG_EXTS:
-                for p in dirp.glob(f"*{ext}"):
-                    mapping[p.stem] = p
+            for ext in ("*.png", "*.tif", "*.tiff"):
+                for p in dirp.glob(ext):
+                    stem = p.stem
+                    if stem.endswith("_depth_color"):
+                        continue
+                    if stem.endswith("_depth16"):
+                        base = stem[:-8]
+                        add(base, p)
+                    else:
+                        add(stem, p)
+
         if dtype in ("auto", "npy"):
             for p in dirp.glob("*.npy"):
-                mapping[p.stem] = p
+                stem = p.stem
+                base = stem[:-6] if stem.endswith("_depth") else stem
+                add(base, p)
+
         return mapping
+
     pred_map = collect(pred_dir, pred_type)
     gt_map = collect(gt_dir, gt_type)
+
     if file_list is not None and file_list.exists():
         names = []
         for line in file_list.read_text().splitlines():
-            n = line.strip()
-            if n and n in pred_map and n in gt_map:
-                names.append(n)
+            name = line.strip()
+            if name and name in pred_map and name in gt_map:
+                names.append(name)
         return names
+
     return sorted(set(pred_map.keys()) & set(gt_map.keys()))
 
 # ---------- CLI ----------
@@ -179,19 +201,25 @@ def main():
     for name in names:
         # Encuentra archivos
         def find_file(dirp: Path, dtype: str) -> Path:
+            candidates: List[Path] = []
             if dtype == "npy":
-                p = dirp / f"{name}.npy"
-                if p.exists(): return p
-            if dtype == "png":
-                for ext in VALID_IMG_EXTS:
-                    p = dirp / f"{name}{ext}"
-                    if p.exists(): return p
-            if dtype == "auto":
-                p = dirp / f"{name}.npy"
-                if p.exists(): return p
-                for ext in VALID_IMG_EXTS:
-                    p = dirp / f"{name}{ext}"
-                    if p.exists(): return p
+                candidates += [dirp / f"{name}.npy", dirp / f"{name}_depth.npy"]
+            elif dtype == "png":
+                candidates += [
+                    dirp / f"{name}.png", dirp / f"{name}.tif", dirp / f"{name}.tiff",
+                    dirp / f"{name}_depth16.png", dirp / f"{name}_depth16.tif", dirp / f"{name}_depth16.tiff",
+                ]
+            elif dtype == "auto":
+                candidates += [
+                    dirp / f"{name}.npy", dirp / f"{name}_depth.npy",
+                    dirp / f"{name}.png", dirp / f"{name}.tif", dirp / f"{name}.tiff",
+                    dirp / f"{name}_depth16.png", dirp / f"{name}_depth16.tif", dirp / f"{name}_depth16.tiff",
+                ]
+            else:
+                raise ValueError(f"dtype no reconocido: {dtype}")
+            for p in candidates:
+                if p.exists():
+                    return p
             raise FileNotFoundError(f"No se encontró archivo para '{name}' en {dirp}")
 
         pred_path = find_file(pred_dir, args.pred_type)
