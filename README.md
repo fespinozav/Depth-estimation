@@ -190,4 +190,5 @@ Si no hay GT, entrega comparativas visuales (mosaicos input|depth, PNG 16‑bit)
 - https://medium.com/@patriciogv/the-state-of-the-art-of-depth-estimation-from-single-images-9e245d51a315
 - https://github.com/DepthAnything/Depth-Anything-V2
 - https://huggingface.co/spaces/depth-anything/Depth-Anything-V2
+- https://viso.ai/computer-vision/monocular-depth-estimation/
 - ...
