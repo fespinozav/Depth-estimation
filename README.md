@@ -172,12 +172,6 @@ Si no hay GT, entrega comparativas visuales (mosaicos input|depth, PNG 16‑bit)
 
 ---
 
-## 📜 Licencia
-Elige una licencia para este repo (por ejemplo, **MIT**).  
-> Nota: respeta las **licencias de los modelos** y dependencias externas (MiDaS/PyTorch/OpenCV).
-
----
-
 ## 🐞 Troubleshooting
 - **No abre la webcam**: prueba `--backend avfoundation` (mac), `--backend dshow` (Windows) o `--backend v4l2` (Linux) y revisa `--cam-index`.  
 - **Bajo FPS**: usa `--model MiDaS_small` o `DPT_Hybrid`, reduce `--size`, habilita `--fp16` en CUDA.  
