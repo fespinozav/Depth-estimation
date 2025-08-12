@@ -14,14 +14,13 @@
 
 **Ejemplo (CSV + resumen Markdown):**
 ```bash
-python eval_depth.py \
-  --pred-dir outputs/DPT_Hybrid/demo_sala \
-  --gt-dir   /ruta/gt_kitti \
-  --pred-type npy --gt-type png \
-  --gt-16bit-scale 0.00390625 \
-  --align median --crop eigen --resize-pred \
-  --out outputs/eval_kitti.csv \
-  --md-out outputs/eval_kitti.md
+  python eval_depth.py \
+  --pred-dir outputs/DPT_Hybrid/kitti_eval \
+  --gt-dir   outputs/DPT_Hybrid/kitti_eval \
+  --pred-type png --gt-type png \
+  --pred-16bit-scale 1.5259e-5 --gt-16bit-scale 1.5259e-5 \
+  --align none --resize-pred \
+  --out outputs/DPT_Hybrid/self_eval.csv
 
 
 # Evaluación de profundidad — Métricas y uso de `eval_depth.py`

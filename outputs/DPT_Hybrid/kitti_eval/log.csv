@@ -1,0 +1,5 @@
+timestamp,source,index,filename,model,device,input_size,fp16,bilateral,width,height,fps
+2025-08-11 22:22:28,images,0,34FC1D2F-CD27-4F54-A1BA-6E283887AE9A.jpg,DPT_Hybrid,mps,518,0,0,3664,2062,1.310
+2025-08-11 22:22:28,images,1,404109_4187632443655_1835731709_n.jpg,DPT_Hybrid,mps,518,0,0,640,960,2.306
+2025-08-11 22:22:29,images,2,A7E23D73-A2F8-4CB7-9F50-6E6EA61E5029.JPG,DPT_Hybrid,mps,518,0,0,1440,1800,1.567
+2025-08-11 22:22:29,images,3,WhatsApp Image 2024-05-14 at 10.35.41.jpeg,DPT_Hybrid,mps,518,0,0,1600,1066,3.937
