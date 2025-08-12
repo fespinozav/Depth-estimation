@@ -155,7 +155,7 @@ outputs/
 ---
 
 ## 📈 Evaluación
-Si se dispone de ground truth (p. ej., **NYU v2** o **KITTI**), añade un `eval_depth.py` para calcular **AbsRel**, **RMSE**, **log10**, **δ<1.25/1.25²/1.25³**.  
+Si se dispone de ground truth (p. ej. **KITTI**), añade un `eval_depth.py` para calcular **AbsRel**, **RMSE**, **log10**, **δ<1.25/1.25²/1.25³**.  
 Si no hay GT, entrega comparativas visuales (mosaicos input|depth, PNG 16‑bit) y **FPS**.
 
 ---
@@ -186,3 +186,8 @@ Elige una licencia para este repo (por ejemplo, **MIT**).
 
 ## 🔗 Referencias
 - https://github.com/isl-org/MiDaS
+- https://learnopencv.com/depth-anything/
+- https://medium.com/@patriciogv/the-state-of-the-art-of-depth-estimation-from-single-images-9e245d51a315
+- https://github.com/DepthAnything/Depth-Anything-V2
+- https://huggingface.co/spaces/depth-anything/Depth-Anything-V2
+- ...
