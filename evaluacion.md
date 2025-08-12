@@ -49,7 +49,7 @@ Este documento explica **cómo evaluar mapas de profundidad** con `eval_depth.py
 ```bash
 python eval_depth.py \
   --pred-dir outputs/DPT_Hybrid/kitti_val \
-  --gt-dir "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" \
+  --gt-dir "/data/KITTI/val_selection_cropped/groundtruth_depth" \
   --pred-type npy --gt-type png \
   --gt-16bit-scale 0.00390625 \
   --align median --resize-pred \
@@ -73,7 +73,7 @@ Repetir la evaluación con **`--align lss`** (escala **y** shift):
 ```bash
 python eval_depth.py \
   --pred-dir outputs/DPT_Hybrid/kitti_val \
-  --gt-dir "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" \
+  --gt-dir "/data/KITTI/val_selection_cropped/groundtruth_depth" \
   --pred-type npy --gt-type png \
   --gt-16bit-scale 0.00390625 \
   --align lss --resize-pred \
@@ -93,14 +93,14 @@ En la práctica, **`lss` reduce AbsRel y sube δ** al remover el sesgo por escen
 ## Instructivo de uso (CLI)
 
 > **Rutas del proyecto** (ajústalas si cambian):
-> - RGB: `/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/rgb_images`  
-> - GT : `/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth`
+> - RGB: `/data/KITTI/val_selection_cropped/rgb_images`  
+> - GT : `/data/KITTI/val_selection_cropped/groundtruth_depth`
 
 ### 1) Generar predicciones (MiDaS — DPT_Hybrid)
 ```bash
 python midas_depth_app.py \
   --source images \
-  --path "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/rgb_images" \
+  --path "/data/KITTI/val_selection_cropped/rgb_images" \
   --model DPT_Hybrid \
   --use-model-subdir --output-subdir kitti_val \
   --save-raw --save-depth16 --no-display
@@ -111,14 +111,14 @@ Salidas (en `outputs/DPT_Hybrid/kitti_val/`):
 ### 2) Verificar archivos
 ```bash
 ls -1 outputs/DPT_Hybrid/kitti_val | head
-ls -1 "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" | head
+ls -1 "/data/KITTI/val_selection_cropped/groundtruth_depth" | head
 ```
 
 ### 3) Evaluación recomendada (pred `.npy` + `lss`)
 ```bash
 python eval_depth.py \
   --pred-dir outputs/DPT_Hybrid/kitti_val \
-  --gt-dir "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" \
+  --gt-dir "/data/KITTI/val_selection_cropped/groundtruth_depth" \
   --pred-type npy --gt-type png \
   --gt-16bit-scale 0.00390625 \
   --align lss --resize-pred \
@@ -131,7 +131,7 @@ python eval_depth.py \
 ```bash
 python eval_depth.py \
   --pred-dir outputs/DPT_Hybrid/kitti_val \
-  --gt-dir "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" \
+  --gt-dir "/data/KITTI/val_selection_cropped/groundtruth_depth" \
   --pred-type png --gt-type png \
   --pred-16bit-scale 1/65535 \
   --gt-16bit-scale   0.00390625 \
@@ -147,7 +147,7 @@ ls outputs/DPT_Hybrid/kitti_val \
 | sed -E 's/(_depth16|_depth)?\.(png|tif|tiff|npy)$//' \
 | sort -u > /tmp/pred.txt
 
-ls "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" \
+ls "/data/KITTI/val_selection_cropped/groundtruth_depth" \
 | sed -E 's/\.(png|tif|tiff)$//' \
 | sed -E 's/^groundtruth_depth_//' \
 | sort -u > /tmp/gt.txt
@@ -158,7 +158,7 @@ head names.txt
 
 python eval_depth.py \
   --pred-dir outputs/DPT_Hybrid/kitti_val \
-  --gt-dir "/Users/felipeespinoza/Documents/GitHub/Depth-estimation/data/KITTI/val_selection_cropped/groundtruth_depth" \
+  --gt-dir "/data/KITTI/val_selection_cropped/groundtruth_depth" \
   --pred-type npy --gt-type png \
   --gt-16bit-scale 0.00390625 \
   --align lss --resize-pred \
