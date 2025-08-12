@@ -121,10 +121,30 @@ def make_mask(gt: np.ndarray, min_depth: float, max_depth: float, crop: str) -> 
 def intersect_basenames(pred_dir: Path, gt_dir: Path, pred_type: str, gt_type: str, file_list: Path = None) -> List[str]:
     """
     Devuelve la lista de nombres base comunes entre pred y gt.
-    - En predicciones, se aceptan *_depth16.(png|tif|tiff) y *_depth.npy; se normalizan a su basename sin sufijo.
-    - Se ignoran archivos de visualización (p. ej., *_depth_color.png).
+    Normalización aplicada:
+      - Pred: quita sufijos *_depth16, *_depth; ignora *_depth_color.*
+      - GT:   quita prefijos groundtruth_depth_ y velodyne_raw_
     """
-    def collect(dirp: Path, dtype: str) -> Dict[str, Path]:
+    def normalize_stem(stem: str, is_gt: bool) -> str:
+        base = stem
+        # Pred: elimina sufijos típicos
+        if not is_gt:
+            if base.endswith("_depth16"):
+                base = base[:-8]
+            elif base.endswith("_depth"):
+                base = base[:-6]
+            if base.endswith("_depth_color"):
+                # esto se ignora más abajo, pero por si acaso
+                base = base.replace("_depth_color", "")
+        # GT: elimina prefijos típicos
+        else:
+            if base.startswith("groundtruth_depth_"):
+                base = base[len("groundtruth_depth_"):]
+            if base.startswith("velodyne_raw_"):
+                base = base[len("velodyne_raw_"):]
+        return base
+
+    def collect(dirp: Path, dtype: str, is_gt: bool) -> Dict[str, Path]:
         mapping: Dict[str, Path] = {}
         def add(key: str, p: Path):
             mapping.setdefault(key, p)
@@ -133,34 +153,52 @@ def intersect_basenames(pred_dir: Path, gt_dir: Path, pred_type: str, gt_type: s
             for ext in ("*.png", "*.tif", "*.tiff"):
                 for p in dirp.glob(ext):
                     stem = p.stem
-                    if stem.endswith("_depth_color"):
+                    if not is_gt and stem.endswith("_depth_color"):
                         continue
-                    if stem.endswith("_depth16"):
-                        base = stem[:-8]
-                        add(base, p)
-                    else:
-                        add(stem, p)
+                    base = normalize_stem(stem, is_gt)
+                    add(base, p)
 
         if dtype in ("auto", "npy"):
             for p in dirp.glob("*.npy"):
                 stem = p.stem
-                base = stem[:-6] if stem.endswith("_depth") else stem
+                base = normalize_stem(stem, is_gt)
                 add(base, p)
 
         return mapping
 
-    pred_map = collect(pred_dir, pred_type)
-    gt_map = collect(gt_dir, gt_type)
+    pred_map = collect(pred_dir, pred_type, is_gt=False)
+    gt_map   = collect(gt_dir,   gt_type,   is_gt=True)
 
     if file_list is not None and file_list.exists():
-        names = []
+        names: List[str] = []
         for line in file_list.read_text().splitlines():
             name = line.strip()
-            if name and name in pred_map and name in gt_map:
+            if not name:
+                continue
+            if name in pred_map and name in gt_map:
                 names.append(name)
         return names
 
-    return sorted(set(pred_map.keys()) & set(gt_map.keys()))
+    names = sorted(set(pred_map.keys()) & set(gt_map.keys()))
+    return names
+
+# Helper: listar archivos en orden lexicográfico
+def list_files(dirp: Path, dtype: str, role: str) -> List[Path]:
+    """
+    Lista archivos candidatos en orden lexicográfico.
+    role: "pred" o "gt" (para ignorar *_depth_color en pred).
+    """
+    files: List[Path] = []
+    if dtype in ("auto", "png"):
+        for ext in ("*.png", "*.tif", "*.tiff"):
+            for p in sorted(dirp.glob(ext)):
+                if role == "pred" and p.stem.endswith("_depth_color"):
+                    continue
+                files.append(p)
+    if dtype in ("auto", "npy"):
+        for p in sorted(dirp.glob("*.npy")):
+            files.append(p)
+    return files
 
 # ---------- CLI ----------
 def parse_args():
@@ -182,6 +220,9 @@ def parse_args():
     ap.add_argument("--list", type=Path, default=None, help="Archivo con lista de nombres (sin extensión) a evaluar")
     ap.add_argument("--resize-pred", action="store_true", help="Si formas no coinciden, redimensiona pred al tamaño del GT")
     ap.add_argument("--out", type=Path, default=Path("outputs/eval_results.csv"), help="Ruta del CSV de salida")
+    ap.add_argument("--pairing", default="name", choices=["name", "sorted"], help="Cómo emparejar predicciones y GT")
+    ap.add_argument("--allow-mismatch", action="store_true", help="En pairing=sorted, permite distinto número de archivos (evalúa hasta el mínimo común)")
+    ap.add_argument("--debug-pairs", action="store_true", help="Imprime ejemplos de pares emparejados para depuración")
     return ap.parse_args()
 
 def main():
@@ -191,66 +232,111 @@ def main():
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
-    names = intersect_basenames(pred_dir, gt_dir, args.pred_type, args.gt_type, args.list)
-    if not names:
-        raise SystemExit("No se encontraron pares pred/gt con nombres coincidentes.")
-
     rows = []
     agg = {"absrel": [], "rmse": [], "delta1": [], "delta2": [], "delta3": [], "n_valid": []}
 
-    for name in names:
-        # Encuentra archivos
-        def find_file(dirp: Path, dtype: str) -> Path:
-            candidates: List[Path] = []
-            if dtype == "npy":
-                candidates += [dirp / f"{name}.npy", dirp / f"{name}_depth.npy"]
-            elif dtype == "png":
-                candidates += [
-                    dirp / f"{name}.png", dirp / f"{name}.tif", dirp / f"{name}.tiff",
-                    dirp / f"{name}_depth16.png", dirp / f"{name}_depth16.tif", dirp / f"{name}_depth16.tiff",
-                ]
-            elif dtype == "auto":
-                candidates += [
-                    dirp / f"{name}.npy", dirp / f"{name}_depth.npy",
-                    dirp / f"{name}.png", dirp / f"{name}.tif", dirp / f"{name}.tiff",
-                    dirp / f"{name}_depth16.png", dirp / f"{name}_depth16.tif", dirp / f"{name}_depth16.tiff",
-                ]
-            else:
-                raise ValueError(f"dtype no reconocido: {dtype}")
-            for p in candidates:
-                if p.exists():
-                    return p
-            raise FileNotFoundError(f"No se encontró archivo para '{name}' en {dirp}")
+    # Emparejamiento
+    mode = args.pairing
+    if mode == "sorted":
+        pred_files = list_files(pred_dir, args.pred_type, role="pred")
+        gt_files   = list_files(gt_dir,   args.gt_type,   role="gt")
+        if len(pred_files) == 0 or len(gt_files) == 0:
+            raise SystemExit(f"No hay archivos para evaluar. pred={len(pred_files)} gt={len(gt_files)}")
+        if len(pred_files) != len(gt_files) and not args.allow_mismatch:
+            raise SystemExit(f"Cantidad desigual de archivos: pred={len(pred_files)} vs gt={len(gt_files)}. "
+                             f"Use --allow-mismatch o alinee los nombres.")
+        n = min(len(pred_files), len(gt_files))
+        pairs = list(zip(pred_files[:n], gt_files[:n]))
+        if args.debug_pairs:
+            print("[DEBUG] Primeros pares (sorted):")
+            for i, (pp, gp) in enumerate(pairs[:10]):
+                print(f"  [{i}] pred={pp.name}  |  gt={gp.name}")
 
-        pred_path = find_file(pred_dir, args.pred_type)
-        gt_path = find_file(gt_dir, args.gt_type)
+        # Evaluación por pares directos
+        for pred_path, gt_path in pairs:
+            pred = load_depth(pred_path, "auto" if args.pred_type == "auto" else args.pred_type, args.pred_16bit_scale)
+            gt   = load_depth(gt_path,   "auto" if args.gt_type   == "auto" else args.gt_type,   args.gt_16bit_scale)
 
-        pred = load_depth(pred_path, "auto" if args.pred_type == "auto" else args.pred_type, args.pred_16bit_scale)
-        gt   = load_depth(gt_path,   "auto" if args.gt_type   == "auto" else args.gt_type,   args.gt_16bit_scale)
+            # Asegurar misma forma
+            if pred.shape != gt.shape:
+                if args.resize_pred:
+                    pred = resize_to(pred, gt.shape[:2])
+                else:
+                    h = min(pred.shape[0], gt.shape[0]); w = min(pred.shape[1], gt.shape[1])
+                    pred = pred[:h, :w]; gt = gt[:h, :w]
 
-        # Asegurar misma forma
-        if pred.shape != gt.shape:
-            if args.resize_pred:
-                pred = resize_to(pred, gt.shape[:2])
-            else:
-                h = min(pred.shape[0], gt.shape[0]); w = min(pred.shape[1], gt.shape[1])
-                pred = pred[:h, :w]; gt = gt[:h, :w]
+            mask = make_mask(gt, args.min_depth, args.max_depth, args.crop)
+            pred_aligned, s = align_prediction(pred, gt, mask, args.align, args.scale)
+            metrics = compute_metrics(pred_aligned, gt, mask)
+            metrics["scale_used"] = s
+            metrics["name"] = pred_path.stem  # nombre informativo
+            rows.append(metrics)
 
-        mask = make_mask(gt, args.min_depth, args.max_depth, args.crop)
-        pred_aligned, s = align_prediction(pred, gt, mask, args.align, args.scale)
-        metrics = compute_metrics(pred_aligned, gt, mask)
-        metrics["scale_used"] = s
-        metrics["name"] = name
-        rows.append(metrics)
+            for k in ["absrel", "rmse", "delta1", "delta2", "delta3"]:
+                if not np.isnan(metrics[k]): agg[k].append(metrics[k])
+            agg["n_valid"].append(metrics["n_valid"])
 
-        for k in ["absrel", "rmse", "delta1", "delta2", "delta3"]:
-            if not np.isnan(metrics[k]): agg[k].append(metrics[k])
-        agg["n_valid"].append(metrics["n_valid"])
+    else:
+        # Emparejamiento por basename (normalizado)
+        names = intersect_basenames(pred_dir, gt_dir, args.pred_type, args.gt_type, args.list)
+        if not names:
+            raise SystemExit("No se encontraron pares pred/gt con nombres coincidentes.")
 
+        for name in names:
+            # Encuentra archivos reales
+            def find_file(dirp: Path, dtype: str) -> Path:
+                candidates: List[Path] = []
+                if dtype == "npy":
+                    candidates += [dirp / f"{name}.npy", dirp / f"{name}_depth.npy"]
+                elif dtype == "png":
+                    candidates += [
+                        dirp / f"{name}.png", dirp / f"{name}.tif", dirp / f"{name}.tiff",
+                        dirp / f"{name}_depth16.png", dirp / f"{name}_depth16.tif", dirp / f"{name}_depth16.tiff",
+                    ]
+                elif dtype == "auto":
+                    candidates += [
+                        dirp / f"{name}.npy", dirp / f"{name}_depth.npy",
+                        dirp / f"{name}.png", dirp / f"{name}.tif", dirp / f"{name}.tiff",
+                        dirp / f"{name}_depth16.png", dirp / f"{name}_depth16.tif", dirp / f"{name}_depth16.tiff",
+                    ]
+                else:
+                    raise ValueError(f"dtype no reconocido: {dtype}")
+                for p in candidates:
+                    if p.exists():
+                        return p
+                raise FileNotFoundError(f"No se encontró archivo para '{name}' en {dirp}")
+
+            pred_path = find_file(pred_dir, args.pred_type)
+            gt_path   = find_file(gt_dir,   args.gt_type)
+
+            pred = load_depth(pred_path, "auto" if args.pred_type == "auto" else args.pred_type, args.pred_16bit_scale)
+            gt   = load_depth(gt_path,   "auto" if args.gt_type   == "auto" else args.gt_type,   args.gt_16bit_scale)
+
+            # Asegurar misma forma
+            if pred.shape != gt.shape:
+                if args.resize_pred:
+                    pred = resize_to(pred, gt.shape[:2])
+                else:
+                    h = min(pred.shape[0], gt.shape[0]); w = min(pred.shape[1], gt.shape[1])
+                    pred = pred[:h, :w]; gt = gt[:h, :w]
+
+            mask = make_mask(gt, args.min_depth, args.max_depth, args.crop)
+            pred_aligned, s = align_prediction(pred, gt, mask, args.align, args.scale)
+            metrics = compute_metrics(pred_aligned, gt, mask)
+            metrics["scale_used"] = s
+            metrics["name"] = name
+            rows.append(metrics)
+
+            for k in ["absrel", "rmse", "delta1", "delta2", "delta3"]:
+                if not np.isnan(metrics[k]): agg[k].append(metrics[k])
+            agg["n_valid"].append(metrics["n_valid"])
+
+    # Promedios
     mean_metrics = {k: (float(np.mean(v)) if len(v) > 0 else float("nan")) for k, v in agg.items() if k != "n_valid"}
     mean_metrics["n_images"] = len(rows)
     mean_metrics["n_pixels"] = int(np.sum(agg["n_valid"])) if agg["n_valid"] else 0
 
+    # Escribir CSV
     with open(args.out, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["name", "absrel", "rmse", "delta1", "delta2", "delta3", "scale_used", "n_valid"])
