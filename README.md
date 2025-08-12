@@ -160,7 +160,7 @@ Si no hay GT, entrega comparativas visuales (mosaicos input|depth, PNG 16‑bit)
 
 ---
 
-## 🧩 Roadmap
+## 🧩 Próximos desarrollos
 - Soporte adicional: **Depth Anything V2** (relativa/métrica), **ZoeDepth** (métrica).  
 - Métricas cualitativas de bordes (iBims‑1‑like).
 
