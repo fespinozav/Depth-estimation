@@ -14,7 +14,7 @@ import torch
 
 
 # -----------------------------
-# Utilidades
+# 0. Funciones auxiliares
 # -----------------------------
 def pick_device(requested: str = "auto") -> torch.device:
     requested = requested.lower()
@@ -70,7 +70,7 @@ def colorize(depth_u8: np.ndarray) -> np.ndarray:
 
 
 # -----------------------------
-# Helper para detectar cierre de ventana OpenCV
+# 1. Lectura y encuadre al tamaño objetivo
 # -----------------------------
 def window_should_close(win_name: str) -> bool:
     """
@@ -130,7 +130,7 @@ def backend_flag(backend: str):
 
 
 # -----------------------------
-# Inferencia
+# 2. Inferencia con MiDaS
 # -----------------------------
 def run_inference(
     image_bgr: np.ndarray,
@@ -171,7 +171,7 @@ def run_inference(
 
 
 # -----------------------------
-# Fuentes de entrada
+# 3.b Fuentes de entrada y procesamiento de imágenes
 # -----------------------------
 def process_webcam(args, midas, transform, device):
     # Backend opcional (macOS: avfoundation suele ser más estable)
@@ -202,12 +202,16 @@ def process_webcam(args, midas, transform, device):
 
             t0 = time.perf_counter()
             depth = run_inference(frame, midas, transform, device, args.size, args.fp16)
-            # Normalización + PDI
+            # -----------------------------
+            # 4.  Normalización por percentiles
+            # -----------------------------
             depth_norm = percentile_normalize(depth, args.p_low, args.p_high)
             depth_u8 = (depth_norm * 255).astype(np.uint8)
             depth_u8 = apply_postprocess(depth_u8, args.bilateral)
 
-            # Suavizado temporal (EMA)
+            # -----------------------------
+            # 5.  Suavizado temporal (EMA)
+            # -----------------------------
             if args.ema_alpha is not None:
                 if ema is None:
                     ema = depth_u8.copy()
@@ -299,7 +303,9 @@ def process_webcam(args, midas, transform, device):
         cv.destroyAllWindows()
         csv_file.close()
 
-
+# -----------------------------
+# 3.b Fuentes de entrada y procesamiento de imágenes (video)
+# -----------------------------
 def process_video(args, midas, transform, device):
     backend = backend_flag(args.backend)
     cap = cv.VideoCapture(args.path, backend if backend is not None else 0)
@@ -344,6 +350,7 @@ def process_video(args, midas, transform, device):
                     ema = depth_u8.copy()
                 else:
                     a = float(args.ema_alpha)
+                    # Filtro EMA por píxel entre cuadros consecutivos
                     ema = (a * ema + (1.0 - a) * depth_u8).astype(np.uint8)
                 vis_u8 = ema
             else:
