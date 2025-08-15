@@ -860,7 +860,6 @@ Como recomendación para trabajos futuros, se sugiere realizar entrenamientos y 
 ## 8. Referencias
 
 1. https://medium.com/@patriciogv/the-state-of-the-art-of-depth-estimation-from-single-images-9e245d51a315
-
 2. https://viso.ai/computer-vision/monocular-depth-estimation/
 3. https://www.ipol.im/pub/art/2023/459/?utm_source=doi
 4. https://arxiv.org/abs/2501.11841
